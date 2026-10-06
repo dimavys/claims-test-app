@@ -1,0 +1,14 @@
+{
+  "name": "claims-api-newman-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Newman/Postman API test suite for the Claims Module (needs the API running on baseUrl).",
+  "scripts": {
+    "build:collection": "node build-collection.mjs",
+    "test": "npm run build:collection && newman run claims-api.postman_collection.json -e local.postman_environment.json --working-dir . --color on",
+    "test:ci": "npm run build:collection && newman run claims-api.postman_collection.json -e local.postman_environment.json --working-dir . --reporters cli,junit --reporter-junit-export results/newman.xml"
+  },
+  "devDependencies": {
+    "newman": "^6.2.1"
+  }
+}

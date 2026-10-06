@@ -1,0 +1,34 @@
+# Build output
+bin/
+obj/
+dist/
+out-tsc/
+.angular/
+
+# Dependencies
+node_modules/
+
+# IDE / editor (frontend/.gitignore keeps the shared Angular .vscode files)
+.vs/
+.idea/
+*.user
+*.suo
+
+# OS
+.DS_Store
+
+# Test and run output
+TestResults/
+coverage/
+logs/
+*.log
+tests/postman/results/
+
+# Local configuration and secrets: copy .env.example to .env, never commit .env
+.env
+appsettings.*.local.json
+*.pfx
+*.key
+
+# Uploaded documents (LocalFileSystem storage provider)
+uploads/

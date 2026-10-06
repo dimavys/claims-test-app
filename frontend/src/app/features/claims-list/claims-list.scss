@@ -1,0 +1,23 @@
+.head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; }
+.head h1 { margin: 0; font: var(--mat-sys-headline-medium); }
+.head p { margin: 2px 0 0; }
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.6fr) 1fr minmax(240px, 1.2fr) 1fr 1fr auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 16px 16px 8px;
+}
+
+.table-card { padding: 0; overflow: hidden; }
+.table-wrap { overflow-x: auto; transition: opacity 120ms; }
+.table-wrap.refreshing { opacity: 0.55; }
+table { width: 100%; min-width: 980px; }
+.row { cursor: pointer; }
+.row:hover, .row:focus-visible { background: var(--mat-sys-surface-container); outline: none; }
+.num-link { color: var(--mat-sys-primary); font-weight: 500; text-decoration: none; }
+.num-link:hover { text-decoration: underline; }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+app-skeleton, app-empty-state { padding: 16px 20px; display: block; }

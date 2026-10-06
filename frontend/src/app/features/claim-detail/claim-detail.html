@@ -1,0 +1,72 @@
+<div class="page">
+  @if (store.loading()) {
+    <div class="card"><app-skeleton [lines]="5" /></div>
+  } @else if (store.notFound()) {
+    <app-empty-state icon="search_off" title="Claim not found" message="It may have been removed, or the link is wrong.">
+      <a mat-flat-button routerLink="/claims">Back to claims</a>
+    </app-empty-state>
+  } @else if (store.failed()) {
+    <app-empty-state icon="cloud_off" title="Could not load the claim" message="The server did not respond as expected.">
+      <button mat-stroked-button (click)="store.load(id())">Try again</button>
+    </app-empty-state>
+  } @else if (claim(); as c) {
+    @if (createdNumber(); as number) {
+      <div class="success" role="status" data-testid="created-banner">
+        <mat-icon>check_circle</mat-icon>
+        <span>Claim <strong class="mono">{{ number }}</strong> was created successfully.</span>
+        <button mat-icon-button aria-label="Dismiss" (click)="dismissBanner()"><mat-icon>close</mat-icon></button>
+      </div>
+    }
+
+    <header class="card header">
+      <div class="title-row">
+        <a mat-icon-button routerLink="/claims" aria-label="Back to claims"><mat-icon>arrow_back</mat-icon></a>
+        <h1 class="mono" data-testid="claim-number">{{ c.claimNumber }}</h1>
+        <button mat-icon-button (click)="copyNumber()" aria-label="Copy claim number" matTooltip="Copy claim number" data-testid="copy-number"><mat-icon>content_copy</mat-icon></button>
+        <app-status-badge [status]="c.status" data-testid="header-status" />
+        <app-severity-badge [severity]="c.severity" />
+        <span class="spacer"></span>
+
+        <span [matTooltip]="menuHint()">
+          <button mat-flat-button [matMenuTriggerFor]="transitions" [disabled]="store.availableTransitions().length === 0" data-testid="transition-button">
+            <mat-icon>swap_horiz</mat-icon> Change status <mat-icon iconPositionEnd>arrow_drop_down</mat-icon>
+          </button>
+        </span>
+        <mat-menu #transitions="matMenu" xPosition="before">
+          @for (t of store.availableTransitions(); track t.status) {
+            <button mat-menu-item (click)="openTransition(t)" [attr.data-testid]="'transition-' + t.status">
+              <span>{{ statusLabels[t.status] }}</span>
+            </button>
+          }
+        </mat-menu>
+      </div>
+
+      <dl class="facts">
+        <div><dt>Policy</dt><dd>@if (c.policyNumber) { <span class="mono">{{ c.policyNumber }}</span> } @else { <span class="muted">No policy linked</span> }</dd></div>
+        <div><dt>Client</dt><dd>{{ c.clientName }}</dd></div>
+        <div><dt>Loss date</dt><dd>{{ c.lossEvent.lossDate | date: 'medium' }}</dd></div>
+        <div><dt>Cause of loss</dt><dd>{{ c.lossEvent.causeOfLossName ?? c.lossEvent.causeOfLossCode }}</dd></div>
+        <div><dt>Assigned handler</dt><dd>{{ c.assignedHandlerName ?? 'Unassigned' }}</dd></div>
+        <div><dt>Total reserves</dt><dd class="num">{{ c.reserveSummary.totalReserves | currency: 'USD' }}</dd></div>
+      </dl>
+    </header>
+
+    <mat-tab-group class="tabs" [selectedIndex]="selectedTab()" (selectedTabChange)="onTabChange($event)" animationDuration="0ms" mat-stretch-tabs="false">
+      <mat-tab label="Overview">
+        <ng-template matTabContent><app-overview-tab /></ng-template>
+      </mat-tab>
+      <mat-tab label="Parties">
+        <ng-template matTabContent><app-parties-tab /></ng-template>
+      </mat-tab>
+      <mat-tab label="Reserves">
+        <ng-template matTabContent><app-reserves-tab /></ng-template>
+      </mat-tab>
+      <mat-tab label="Documents">
+        <ng-template matTabContent><app-documents-tab /></ng-template>
+      </mat-tab>
+      <mat-tab label="Audit log">
+        <ng-template matTabContent><app-audit-tab (openTab)="goToTab($event)" /></ng-template>
+      </mat-tab>
+    </mat-tab-group>
+  }
+</div>
