@@ -1,0 +1,93 @@
+name: Deploy to Azure
+
+# Manual trigger (the brief accepts this). Needs the secrets/variables printed by `./infra/deploy.sh info`.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  API_URL: ${{ vars.API_URL }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # ---------------------------------------------------------------- backend
+      - name: Build and test backend
+        working-directory: backend
+        run: |
+          dotnet build -c Release
+          # The SQL-backed tests run in ci.yml; deploy only gates on a clean build.
+
+      - name: Apply EF Core migrations to Azure SQL
+        working-directory: backend
+        env:
+          ConnectionStrings__ClaimsDb: ${{ secrets.SQL_CONNECTION_STRING }}
+        run: |
+          dotnet tool restore
+          dotnet ef database update --project src/ClaimsModule.Persistence
+
+      - name: Publish API
+        run: dotnet publish backend/src/ClaimsModule.API -c Release -o publish
+
+      - name: Deploy API to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: publish
+
+      - name: Wait for the API to be healthy
+        run: |
+          for i in $(seq 1 40); do
+            [ "$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/health")" = "200" ] && exit 0
+            sleep 5
+          done
+          echo "API did not become healthy" && exit 1
+
+      # ---------------------------------------------------------------- frontend
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          # Runtime config: point the same build at this environment's API.
+          printf '{ "apiBaseUrl": "%s" }\n' "$API_URL" > dist/claims-ui/browser/config.json
+
+      - name: Deploy frontend to Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: upload
+          app_location: frontend/dist/claims-ui/browser
+          skip_app_build: true
+          skip_api_build: true
+
+      # ---------------------------------------------------------------- smoke test
+      - name: Smoke test with Newman against the deployed API
+        working-directory: tests/postman
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build:collection
+          npx newman run claims-api.postman_collection.json -e local.postman_environment.json \
+            --env-var "baseUrl=$API_URL" --working-dir . --reporters cli,junit --reporter-junit-export results/newman.xml
+
+      - name: Upload smoke-test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-results
+          path: tests/postman/results/newman.xml

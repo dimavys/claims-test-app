@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend tests + API contract tests
+    runs-on: ubuntu-latest
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: Claims_Dev#2026   # matches the local default the tests and Development settings use
+        ports: ['1433:1433']
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Claims_Dev#2026' -Q 'SELECT 1'"
+          --health-interval 10s --health-timeout 5s --health-retries 12 --health-start-period 20s
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build
+        working-directory: backend
+        run: dotnet build -c Release
+
+      - name: Test (domain, persistence, pipeline, jobs, HTTP)
+        working-directory: backend
+        run: dotnet test -c Release --no-build --logger "trx;LogFileName=backend.trx"
+
+      - name: Start the API (applies migrations in Development)
+        run: |
+          nohup dotnet run --project backend/src/ClaimsModule.API -c Release --no-build --launch-profile http > api.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:5080/health && break
+            sleep 2
+          done
+          curl -fsS http://localhost:5080/health
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tests/postman/package-lock.json
+
+      - name: Newman API tests
+        working-directory: tests/postman
+        run: |
+          npm ci --no-audit --no-fund
+          npm run test:ci
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-results
+          path: |
+            backend/**/TestResults/*.trx
+            tests/postman/results/newman.xml
+            api.log
+
+  frontend:
+    name: Frontend tests + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Unit tests
+        working-directory: frontend
+        run: npx ng test --no-watch
+
+      - name: Production build
+        working-directory: frontend
+        run: npm run build
