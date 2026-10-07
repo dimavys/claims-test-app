@@ -74,7 +74,6 @@ jobs:
           action: upload
           app_location: frontend/dist/claims-ui/browser
           skip_app_build: true
-          skip_api_build: true
 
       # ---------------------------------------------------------------- smoke test
       - name: Smoke test with Newman against the deployed API
