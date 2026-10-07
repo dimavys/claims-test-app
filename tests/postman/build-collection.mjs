@@ -406,7 +406,10 @@ const collection = {
           `pm.test('as an attachment with the clean file name', () => pm.expect(pm.response.headers.get('Content-Disposition')).to.contain('report.txt'));`,
         ],
       }),
-      req('A tampered signature is rejected (404)', 'GET', '{{downloadUrl}}0', { who: 'none', tests: [status(404)] }),
+      req('A tampered signature is rejected', 'GET', '{{downloadUrl}}0', {
+        who: 'none',
+        tests: [`pm.test('rejected (404 from the local provider, 403 from Azure Storage)', () => pm.expect([403, 404]).to.include(pm.response.code));`],
+      }),
     ]),
 
     folder('10. Close, reopen (claim A)', [

@@ -1,4 +1,5 @@
 using ClaimsModule.Application.Common;
+using ClaimsModule.Application.Features.Claims.Commands;
 using ClaimsModule.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -30,8 +31,7 @@ public sealed class FilesController(LocalFileSystemStorageService localStorage, 
             throw new NotFoundException("Document", path);
         }
 
-        var name = Path.GetFileName(path);
-        var display = System.Text.RegularExpressions.Regex.Replace(name, "^[0-9a-f]{8}-", string.Empty);
+        var display = DocumentRules.DisplayName(path);
         if (!ContentTypes.TryGetContentType(display, out var contentType))
         {
             contentType = "application/octet-stream";

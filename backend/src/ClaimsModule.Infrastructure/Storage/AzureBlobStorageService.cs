@@ -2,6 +2,7 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Sas;
 using ClaimsModule.Application.Abstractions;
+using ClaimsModule.Application.Features.Claims.Commands;
 using ClaimsModule.Infrastructure.Options;
 using Microsoft.Extensions.Options;
 
@@ -47,6 +48,8 @@ public sealed class AzureBlobStorageService : IStorageService
             BlobContainerName = _container.Name,
             BlobName = blobName,
             Resource = "b",
+            // Saves as the clean file name instead of the internal "{prefix}-name" blob name.
+            ContentDisposition = $"attachment; filename=\"{DocumentRules.DisplayName(blobName)}\"",
         };
         return Task.FromResult(blob.GenerateSasUri(sas));
     }

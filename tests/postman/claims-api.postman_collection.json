@@ -2541,14 +2541,14 @@
           }
         },
         {
-          "name": "A tampered signature is rejected (404)",
+          "name": "A tampered signature is rejected",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is 404', () => pm.response.to.have.status(404));"
+                  "pm.test('rejected (404 from the local provider, 403 from Azure Storage)', () => pm.expect([403, 404]).to.include(pm.response.code));"
                 ]
               }
             }

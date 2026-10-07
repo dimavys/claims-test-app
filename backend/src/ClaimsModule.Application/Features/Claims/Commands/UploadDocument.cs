@@ -26,6 +26,18 @@ public static class DocumentRules
     };
 
     private static readonly Regex Unsafe = new(@"[^A-Za-z0-9._\- ]", RegexOptions.Compiled);
+    private static readonly Regex UniquePrefix = new("^[0-9a-f]{8}-", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Stored names are "{8 hex}-{clean name}" (the prefix keeps same-named uploads from overwriting each other).
+    /// This returns the clean name users should see and download.
+    /// </summary>
+    public static string DisplayName(string storedPathOrName)
+    {
+        var name = storedPathOrName.Replace('\\', '/');
+        name = name[(name.LastIndexOf('/') + 1)..];
+        return UniquePrefix.Replace(name, string.Empty);
+    }
 
     /// <summary>
     /// Strips directory components and every character that is not a plain letter, digit, dot, dash, underscore or space,

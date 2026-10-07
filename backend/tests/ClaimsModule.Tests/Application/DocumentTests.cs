@@ -26,6 +26,15 @@ public class DocumentRulesTests
     public void File_names_are_sanitised_against_path_traversal(string input, string expected) =>
         DocumentRules.SanitizeFileName(input).Should().Be(expected);
 
+    [Theory]
+    [InlineData("ebf7473e-report.txt", "report.txt")]
+    [InlineData("claim-documents/org/claim/ebf7473e-Police Report.pdf", "Police Report.pdf")]
+    [InlineData("org\\claim\\0a1b2c3d-a-b.csv", "a-b.csv")]
+    [InlineData("report.txt", "report.txt")]          // no prefix: unchanged
+    [InlineData("zzzzzzzz-report.txt", "zzzzzzzz-report.txt")] // not hex: not our prefix
+    public void Display_name_strips_the_internal_uniqueness_prefix(string stored, string expected) =>
+        DocumentRules.DisplayName(stored).Should().Be(expected);
+
     [Fact]
     public void Very_long_names_are_truncated_keeping_the_extension() =>
         DocumentRules.SanitizeFileName(new string('a', 400) + ".pdf").Should().HaveLength(150).And.EndWith(".pdf");
