@@ -101,7 +101,11 @@ public sealed class ApiTests : IAsyncLifetime
         body.GetProperty("type").GetString().Should().Be("Unauthorized");
         body.GetProperty("correlationId").GetGuid().Should().NotBeEmpty();
 
-        (await client.GetAsync("/health")).StatusCode.Should().Be(HttpStatusCode.OK);
+        var health = await client.GetAsync("/health");
+        health.StatusCode.Should().Be(HttpStatusCode.OK);
+        var healthBody = await health.JsonAsync();
+        healthBody.GetProperty("status").GetString().Should().Be("Healthy");
+        healthBody.GetProperty("version").GetString().Should().NotBeNullOrWhiteSpace("deployments verify the live build by its version");
         (await client.GetAsync("/swagger/v1/swagger.json")).StatusCode.Should().Be(HttpStatusCode.OK);
         (await client.PostAsJsonAsync("/api/claims/validate", new { })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }

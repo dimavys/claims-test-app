@@ -40,8 +40,8 @@ jobs:
           dotnet tool restore
           dotnet ef database update --project src/ClaimsModule.Persistence
 
-      - name: Publish API
-        run: dotnet publish backend/src/ClaimsModule.API -c Release -o publish
+      - name: Publish API (stamped with the commit SHA)
+        run: dotnet publish backend/src/ClaimsModule.API -c Release -o publish -p:SourceRevisionId=${{ github.sha }}
 
       - name: Deploy API to App Service
         uses: azure/webapps-deploy@v3
@@ -50,13 +50,20 @@ jobs:
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: publish
 
-      - name: Wait for the API to be healthy
+      # A plain "is it healthy?" check passes against the OLD container while the new one is still starting, and the
+      # old one is then stopped mid-request. Wait until the response reports THIS commit.
+      - name: Wait until this build is the one serving traffic
         run: |
-          for i in $(seq 1 40); do
-            [ "$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/health")" = "200" ] && exit 0
+          for i in $(seq 1 72); do
+            body="$(curl -s "$API_URL/health" || true)"
+            if echo "$body" | grep -q '"status":"Healthy"' && echo "$body" | grep -q "${{ github.sha }}"; then
+              echo "Live build confirmed: $body"
+              exit 0
+            fi
             sleep 5
           done
-          echo "API did not become healthy" && exit 1
+          echo "The new build never became live. Last response: $body"
+          exit 1
 
       # ---------------------------------------------------------------- frontend
       - name: Build frontend

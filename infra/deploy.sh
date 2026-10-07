@@ -65,7 +65,13 @@ DEFAULT_REGIONS="northeurope uksouth swedencentral francecentral germanywestcent
 cmd_infra() {
   preflight; load_secrets
   local candidates swa deployed="" loc log
-  candidates="${LOCATION:-$DEFAULT_REGIONS}"
+  candidates="${LOCATION:-}"
+  if [ -z "$candidates" ]; then
+    # Re-runs stay in the region of the existing plan instead of probing every region again.
+    # Azure returns display names ("Sweden Central"); region ids are the lower-case name without spaces.
+    candidates="$(az appservice plan list -g "$RG" --query '[0].location' -o tsv 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]' || true)"
+    candidates="${candidates:-$DEFAULT_REGIONS}"
+  fi
   swa="${SWA_LOCATION:-centralus}"   # Static Web Apps only exist in: westus2 centralus eastus2 westeurope eastasia
   local sku="${PLAN_SKU:-B1}"
   local api_name="${API_NAME:-}"
@@ -133,11 +139,14 @@ cmd_migrate() {
     dotnet ef database update --project src/ClaimsModule.Persistence )
 }
 
+# Waits for a healthy API. With an expected version it waits for THAT build, so a smoke test never races the old
+# container while it is being replaced.
 wait_for_health() {
-  local url="$1/health" i
-  say "Waiting for $url"
-  for i in $(seq 1 40); do
-    if [ "$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)" = "200" ]; then echo "healthy"; return 0; fi
+  local url="$1/health" expect="${2:-}" i body
+  say "Waiting for $url${expect:+ to report build ${expect:0:7}}"
+  for i in $(seq 1 72); do
+    body="$(curl -s "$url" || true)"
+    if [[ "$body" == *'"status":"Healthy"'* ]] && { [ -z "$expect" ] || [[ "$body" == *"$expect"* ]]; }; then echo "healthy: $body"; return 0; fi
     sleep 5
   done
   fail "The API did not become healthy. Check: az webapp log tail -g $RG -n $(out apiName)"
@@ -146,12 +155,13 @@ wait_for_health() {
 cmd_api() {
   preflight
   mkdir -p "$WORK"; rm -rf "$WORK/api" "$WORK/api.zip"
-  say "Publishing the API"
-  dotnet publish "$ROOT/backend/src/ClaimsModule.API" -c Release -o "$WORK/api" --nologo -v quiet
+  local rev; rev="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)"
+  say "Publishing the API${rev:+ (build ${rev:0:7})}"
+  dotnet publish "$ROOT/backend/src/ClaimsModule.API" -c Release -o "$WORK/api" --nologo -v quiet ${rev:+-p:SourceRevisionId="$rev"}
   ( cd "$WORK/api" && zip -qr "$WORK/api.zip" . )
   say "Deploying to App Service $(out apiName)"
   az webapp deploy -g "$RG" -n "$(out apiName)" --src-path "$WORK/api.zip" --type zip -o none
-  wait_for_health "$(out apiUrl)"
+  wait_for_health "$(out apiUrl)" "$rev"
 }
 
 cmd_web() {

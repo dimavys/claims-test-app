@@ -7,6 +7,7 @@ using ClaimsModule.Infrastructure.Options;
 using ClaimsModule.Persistence;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -71,10 +72,15 @@ app.UseAuthorization();
 app.UseMiddleware<IdempotencyMiddleware>();
 
 app.MapControllers();
+// The version is the commit SHA baked in at publish time (-p:SourceRevisionId). Deployments wait for it to appear so
+// that smoke tests never run against the old container while it is being replaced.
+var buildVersion = typeof(Program).Assembly
+    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
+
 app.MapGet("/health", async (ClaimsDbContext db, CancellationToken ct) =>
         await db.Database.CanConnectAsync(ct)
-            ? Results.Ok(new { status = "Healthy" })
-            : Results.Json(new { status = "Unhealthy" }, statusCode: StatusCodes.Status503ServiceUnavailable))
+            ? Results.Ok(new { status = "Healthy", version = buildVersion })
+            : Results.Json(new { status = "Unhealthy", version = buildVersion }, statusCode: StatusCodes.Status503ServiceUnavailable))
     .AllowAnonymous();
 
 if (backgroundJobsEnabled)

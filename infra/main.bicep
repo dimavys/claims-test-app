@@ -174,6 +174,16 @@ resource api 'Microsoft.Web/sites@2023-12-01' = {
   }
 }
 
+// Keep container output (Serilog writes to stdout) so a production 500 leaves a stack trace: `az webapp log tail`.
+resource apiLogs 'Microsoft.Web/sites/config@2023-12-01' = {
+  parent: api
+  name: 'logs'
+  properties: {
+    applicationLogs: { fileSystem: { level: 'Information' } }
+    httpLogs: { fileSystem: { enabled: true, retentionInMb: 35, retentionInDays: 3 } }
+  }
+}
+
 // Newer subscriptions disable basic-auth publishing by default; the GitHub Actions publish-profile deploy needs it.
 resource scmBasicAuth 'Microsoft.Web/sites/basicPublishingCredentialsPolicies@2023-12-01' = {
   parent: api
