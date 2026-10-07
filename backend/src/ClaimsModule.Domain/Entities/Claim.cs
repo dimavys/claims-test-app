@@ -136,7 +136,9 @@ public class Claim : AggregateRoot
         Raise(new PartyAddedDomainEvent(Id, party.Id, party.PartyRole, party.DisplayName));
     }
 
-    /// <summary>Soft-removes a party. The last active Claimant cannot be removed (FRS §10.1).</summary>
+    /// <summary>
+    /// Soft-removes a party. The last active Claimant cannot be removed (FRS §10.1, BR-P-01: a claim keeps at least one Claimant).
+    /// </summary>
     public void RemoveParty(Guid partyId, DateTimeOffset now)
     {
         var party = _parties.FirstOrDefault(p => p.Id == partyId && p.IsActive)
@@ -203,7 +205,10 @@ public class Claim : AggregateRoot
         }
     }
 
-    /// <summary>Keeps the claimant (Critical) and risk-object (Warning) issues in step with the claim's contents.</summary>
+    /// <summary>
+    /// Keeps the claimant (Critical) and risk-object (Warning) issues in step with the claim's contents.
+    /// FRS BR-C-03 / BR-P-01: having no Claimant is a Critical issue that blocks Draft → Open.
+    /// </summary>
     private void SyncStructuralIssues(DateTimeOffset now)
     {
         if (ActiveClaimants.Any())
@@ -252,6 +257,7 @@ public class Claim : AggregateRoot
         switch (target)
         {
             case ClaimStatus.Open when from == ClaimStatus.Draft:
+                // FRS BR-ST-02 / BR-C-03: no Critical issues and at least one Claimant; BR-C-02: warnings cleared or acknowledged.
                 if (_validationIssues.Any(i => i.IsOutstanding && i.Severity == ValidationSeverity.Critical))
                 {
                     blocking.Add("Unresolved Critical validation issues remain.");
@@ -337,7 +343,9 @@ public class Claim : AggregateRoot
         }
     }
 
-    /// <summary>Closure pre-flight (CC-01..CC-04). Empty means the claim can be closed.</summary>
+    /// <summary>
+    /// Closure pre-flight: FRS §4.3 conditions CC-01..CC-04, enforced by BR-ST-03. Empty means the claim can be closed.
+    /// </summary>
     public IReadOnlyList<string> ClosureBlockers(string? closureJustification = null)
     {
         var blockers = new List<string>();
@@ -459,6 +467,7 @@ public class Claim : AggregateRoot
             throw DomainException.Authority(ValidationMessages.ApproverAuthority);
         }
 
+        // FRS BR-R-03: a user may never approve their own reserve, even when their role covers the amount.
         if (txn.SubmittedByUserId == approverId)
         {
             throw new DomainException(ValidationMessages.SelfApproval, field: "ReserveApproval");
@@ -469,6 +478,7 @@ public class Claim : AggregateRoot
             throw new DomainException("The reserve balance for this component cannot go negative.", field: "ReserveAmount");
         }
 
+        // FRS BR-R-05 (Brief BR-R-07): beyond $10,000,000 in total, approval needs the Manager override flag.
         if (txn.Amount > 0 && TotalReserves + txn.Amount > ReserveAuthorityPolicy.AggregateLimit && !ManagerOverride)
         {
             throw new DomainException(
@@ -481,6 +491,10 @@ public class Claim : AggregateRoot
         return txn;
     }
 
+    /// <summary>
+    /// Rejects a pending reserve (supervisor/manager). FRS BR-R-04: the rejected record stays in the history with its reason,
+    /// and the submitter may submit a new transaction with a revised amount.
+    /// </summary>
     public ReserveHistory RejectReserve(Guid transactionId, Guid rejecterId, UserRole rejecterRole, string reason, DateTimeOffset now)
     {
         var (component, txn) = FindTransaction(transactionId);

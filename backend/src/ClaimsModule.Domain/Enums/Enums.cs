@@ -7,6 +7,7 @@ public enum ClaimSeverity { Minor, Standard, Critical, Catastrophic }
 /// <summary>Ordered by authority: a higher value includes every capability of the lower ones.</summary>
 public enum UserRole { Handler = 1, Supervisor = 2, Manager = 3 }
 
+/// <summary>FRS BR-P-02: a claim may have several parties of the same role (e.g. multiple claimants).</summary>
 public enum PartyRole { Claimant, Insured, ThirdParty, Witness, Attorney }
 
 public enum PartyType { Person, Company }

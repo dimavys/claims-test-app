@@ -72,15 +72,18 @@ public sealed class CreateClaimCommandValidator : AbstractValidator<CreateClaimC
 {
     public CreateClaimCommandValidator(IReferenceDataRepository reference, TimeProvider time)
     {
+        // FRS BR-C-01: the loss date is required and must not be in the future (Critical).
         RuleFor(c => c.LossDate)
             .Must(d => d != default).WithMessage(ValidationMessages.LossDateRequired)
             .DependentRules(() => RuleFor(c => c.LossDate)
                 .Must(d => d <= time.GetUtcNow()).WithMessage(ValidationMessages.LossDateInFuture));
 
+        // FRS BR-C-07: required, at least 20 characters (Critical).
         RuleFor(c => c.LossDescription)
             .Must(d => !string.IsNullOrWhiteSpace(d) && d.Trim().Length >= LossEvent.MinDescriptionLength)
             .WithMessage(ValidationMessages.LossDescription);
 
+        // FRS BR-C-05: the code must exist and be active in the reference table (Critical).
         RuleFor(c => c.CauseOfLossCode)
             .NotEmpty().WithMessage(ValidationMessages.CauseOfLossInvalid)
             .MustAsync(async (code, ct) => await reference.GetActiveCauseOfLossCodeAsync(code, ct) is not null)
